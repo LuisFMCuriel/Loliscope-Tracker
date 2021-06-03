@@ -14,13 +14,19 @@ import ffmpeg
 
 
 
-def Tracker(path, filename, initBB = None):
+def Tracker(path, filename, img, initBB = None):
     tracker = cv2.TrackerKCF_create()
-    os.system(r"C:\Users\lmorales-curiel\Documents\fiji-win64\Fiji.app\ImageJ-win64.exe --headless --console -macro ./Macro_fiji_saveAVI")
-
-    img = os.path.join(path,filename)
+    img_path = os.path.join(path,filename)
+    
+    #Write video
+    #os.system(r"C:\Users\lmorales-curiel\Documents\fiji-win64\Fiji.app\ImageJ-win64.exe --headless --console -macro ./Macro_fiji_saveAVI")
+    fps = 7
+    out = cv2.VideoWriter(img_path+".avi", cv2.VideoWriter_fourcc(*"MJPG"), fps, (img.shape[1], img.shape[2]), False)
+    for i in range(img.shape[0]):
+        out.write(img[i,:,:])
+    
     #Read video
-    vs = cv2.VideoCapture(img+".avi")
+    vs = cv2.VideoCapture(img_path+".avi")
 
     vs.set(cv2.CAP_PROP_FPS, 1)
 
