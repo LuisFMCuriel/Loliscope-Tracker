@@ -15,7 +15,7 @@ import ffmpeg
 
 
 def Tracker(path, filename, img, initBB = None):
-    tracker = cv2.TrackerKCF_create()
+    tracker = cv2.cv2.legacy.TrackerKCF_create()
     img_path = os.path.join(path,filename)
     
     #Write video
