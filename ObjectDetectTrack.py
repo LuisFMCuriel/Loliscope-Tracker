@@ -11,12 +11,57 @@ from tifffile import imread, imsave
 import imutils
 
 
+
+def Get_InitBboxes(gray):
+	thresh = cv2.threshold(gray, 80, 255,
+    cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+	im = gray.copy()   
+	D = ndimage.distance_transform_edt(thresh)
+	localMax = peak_local_max(D, indices=False, min_distance=3,  
+	    labels=thresh)
+	# perform a connected component analysis on the local peaks,
+	# using 8-connectivity, then apply the Watershed algorithm
+	markers = ndimage.label(localMax, structure=np.ones((3, 3)))[0]
+	labels = watershed(-D, markers, mask=thresh)
+	print("[INFO] {} unique segments found".format(len(np.unique(labels)) - 1))
+	boxes_coord = []
+	boxes_pix = []
+	conts=[]    
+	avg = []
+	for label in np.unique(labels):
+	    # if the label is zero, we are examining the 'background'
+	    # so simply ignore it
+	    if label == 0:
+	        continue
+	    # otherwise, allocate memory for the label region and draw
+	    # it on the mask
+	    mask = np.zeros(gray.shape, dtype="uint8")
+	    mask[labels == label] = 255
+	    # detect contours in the mask and grab the largest one
+	    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
+	        cv2.CHAIN_APPROX_SIMPLE)[-2]
+	    c = max(cnts, key=cv2.contourArea)
+	    boxes_pix.append(c)
+	    rect = cv2.minAreaRect(c)
+	    box = cv2.boxPoints(rect)
+	    box = np.int0(box) 
+	    if cv2.contourArea(c) > 40:
+	        mask = np.copy(frame)
+	        boxes_coord.append(box)
+	        #cv2.drawContours(image,c,-1,(0,255,0))
+	        #cv2.drawContours(image,[box],-1,(255,255,255))
+	        cv2.drawContours(mask,[box],-1,(255,255,255), -1)
+	        #res = cv2.bitwise_and(original,original,mask=mask)
+	        idx = np.where( mask==255)
+	        avg.append(np.mean(original[idx]))
+	return boxes_coord
+
 img_dir = r"X:\LuisFel\Tracking\Fake_neurons_track"
 path_s = r"X:\LuisFel\Tracking\Neuron_Autotracked"
 data_path = os.path.join(img_dir, "*.tif") #Assume images are in tiff format
 img_files = glob.glob(data_path)
 
-tracked = np.zeros((100,500,500,3))
+tracked = np.zeros((11,500,500,3))
 
 # Read first image
 frame = imread(img_files[0])
@@ -24,50 +69,12 @@ original = np.copy(frame)
 frame = ((frame - np.amin(frame))/(np.amax(frame) - np.amin(frame)))*255.0
 frame = frame.astype("uint8")
 
-gray  = frame
-thresh = cv2.threshold(gray, 80, 255,
-    cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-im = gray.copy()   
-D = ndimage.distance_transform_edt(thresh)
-localMax = peak_local_max(D, indices=False, min_distance=3,  
-    labels=thresh)
-# perform a connected component analysis on the local peaks,
-# using 8-connectivity, then apply the Watershed algorithm
-markers = ndimage.label(localMax, structure=np.ones((3, 3)))[0]
-labels = watershed(-D, markers, mask=thresh)
-print("[INFO] {} unique segments found".format(len(np.unique(labels)) - 1))
-boxes_coord = []
-boxes_pix = []
-conts=[]    
-avg = []
-for label in np.unique(labels):
-    # if the label is zero, we are examining the 'background'
-    # so simply ignore it
-    if label == 0:
-        continue
-    # otherwise, allocate memory for the label region and draw
-    # it on the mask
-    mask = np.zeros(gray.shape, dtype="uint8")
-    mask[labels == label] = 255
-    # detect contours in the mask and grab the largest one
-    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE)[-2]
-    c = max(cnts, key=cv2.contourArea)
-    boxes_pix.append(c)
-    rect = cv2.minAreaRect(c)
-    box = cv2.boxPoints(rect)
-    box = np.int0(box) 
-    if cv2.contourArea(c) > 40:
-        mask = np.copy(frame)
-        boxes_coord.append(box)
-        #cv2.drawContours(image,c,-1,(0,255,0))
-        #cv2.drawContours(image,[box],-1,(255,255,255))
-        cv2.drawContours(mask,[box],-1,(255,255,255), -1)
-        #res = cv2.bitwise_and(original,original,mask=mask)
-        idx = np.where( mask==255)
-        avg.append(np.mean(original[idx]))
+
+#Get inint boxes
+boxes_coord = Get_InitBboxes(frame)
 
 frame = imutils.resize(frame, width=500)
+
 
 #For now only track one neuron
 colors = []
