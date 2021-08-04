@@ -42,12 +42,12 @@ def Get_intensityFromBBox(image, bbox):
 		    cv2.CHAIN_APPROX_SIMPLE)[-2]
 		c = max(cnts, key=cv2.contourArea)
 
-		rect = cv2.minAreaRect(c)
-		box = cv2.boxPoints(rect)
-		box = np.int0(box) 
+		#rect = cv2.minAreaRect(c)
+		#box = cv2.boxPoints(rect)
+		#box = np.int0(box) 
 
 		mask = np.copy(image)
-		cv2.drawContours(mask,[box],-1,(255,255,255), -1)
+		cv2.drawContours(mask,[cnts[0]],-1,(255,255,255), -1)
 		idx = np.where(mask==255)
 		avg.append(np.mean(original[idx]))
 	return np.mean(avg)
@@ -97,7 +97,7 @@ def Get_InitBboxes(gray):
 	        avg.append(np.mean(original[idx]))
 	return boxes_coord
 
-img_dir = r"X:\LuisFel\Tracking\Fake_neurons_track"
+img_dir = r"X:\LuisFel\Tracking\Fake_neurons_track\binary"
 path_s = r"X:\LuisFel\Tracking\Neuron_Autotracked"
 data_path = os.path.join(img_dir, "*.tif") #Assume images are in tiff format
 img_files = glob.glob(data_path)
