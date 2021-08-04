@@ -67,21 +67,25 @@ for label in np.unique(labels):
         idx = np.where( mask==255)
         avg.append(np.mean(original[idx]))
 
-#For now only track one neuron
-Coord_neuron = boxes_coord[3]
-xmin = np.amin(Coord_neuron[:,0])
-ymin = np.amin(Coord_neuron[:,1])
-xmax = np.amax(Coord_neuron[:,0])
-ymax = np.amax(Coord_neuron[:,1])
-w = ymax - ymin
-h = xmax - xmin
-
 frame = imutils.resize(frame, width=500)
 
-#Normalize the coordinates for the new size
-pixels_frame = 5
-xmin = int((frame.shape[0]*(xmin))/original.shape[0]) - pixels_frame
-ymin = int((frame.shape[0]*(ymin))/original.shape[0]) - pixels_frame
+#For now only track one neuron
+colors = []
+bboxes = []
+pixels_frame = 10
+for box in boxes_coord:
+	xmin = np.amin(box[:,0])
+	ymin = np.amin(box[:,1])
+	xmax = np.amax(box[:,0])
+	ymax = np.amax(box[:,1])
+	w = ymax - ymin
+	h = xmax - xmin
+	#Normalize the coordinates for the new size
+	xmin = int((frame.shape[0]*(xmin))/original.shape[0]) - pixels_frame
+	ymin = int((frame.shape[0]*(ymin))/original.shape[0]) - pixels_frame
+	bboxes.append((xmin,ymin,h,w))
+	colors.append((np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255)))
+
 #h = int((frame.shape[0]*(h))/original.shape[0]) + pixels_frame
 #w = int((frame.shape[0]*(w))/original.shape[0]) + pixels_frame
 
@@ -91,37 +95,53 @@ if frame is None:
     sys.exit()
 
 # Set the coord of the first neuron
-bbox = (xmin, ymin, h, w)
-print(bbox)
-bbox = cv2.selectROI(frame, False)
-print(bbox)
-tracker = cv2.legacy.TrackerMOSSE_create()
-ok = tracker.init(frame, bbox)
+#bbox = (xmin, ymin, h, w)
+#print(bbox)
+#bbox = cv2.selectROI(frame, False)
+#print(bbox)
+#tracker = cv2.legacy.TrackerMOSSE_create()
+#ok = tracker.init(frame, bbox)
+
+#Create multitracker object
+tracker = cv2.legacy.MultiTracker_create()
+
+#Tracker type
+trackerType = "CSRT"
+#Initialize multitracker
+for bbox in bboxes:
+	tracker.add(cv2.legacy.TrackerMOSSE_create(), frame, bbox)
+
 
 #while True:
 cont = 0
 # Iterate image files instead of reading from a video file
 for f1 in img_files:
-    #frame = cv2.imread(f1)
-    frame = imread(f1)
-    frame = ((frame - np.amin(frame))/(np.amax(frame) - np.amin(frame)))*255.0
-    frame = frame.astype("uint8")
-    frame = np.expand_dims(frame, axis=-1)
-    frame = np.broadcast_to(frame, (frame.shape[0], frame.shape[1], 3))
-    frame = imutils.resize(frame, width=500)
+	#frame = cv2.imread(f1)
+	frame = imread(f1)
+	frame = ((frame - np.amin(frame))/(np.amax(frame) - np.amin(frame)))*255.0
+	frame = frame.astype("uint8")
+	frame = np.expand_dims(frame, axis=-1)
+	frame = np.broadcast_to(frame, (frame.shape[0], frame.shape[1], 3))
+	frame = imutils.resize(frame, width=500)
 
-    # Start timer
-    timer = cv2.getTickCount()
+	# Start timer
+	timer = cv2.getTickCount()
 
-    # Update tracker
-    ok, bbox = tracker.update(frame)
-    print(ok)
+	# Update tracker
+	ok, bbox = tracker.update(frame)
+	print(ok)
 
-    # Calculate Frames per second (FPS)
-    #fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer);
+	# Calculate Frames per second (FPS)
+	#fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer);
 
-    fps = 8 # We don't know the fps from the set of images
+	fps = 8 # We don't know the fps from the set of images
 
+	for i, newbox in enumerate(bboxes):
+		p1 = (int(newbox[0]), int(newbox[1]))
+		p2 = (int(newbox[0] + newbox[2]), int(newbox[1] + newbox[3]))
+		cv2.rectangle(frame, p1, p2, colors[i], 2, 1)
+
+	'''
     # Draw bounding box
     if ok:
         # Tracking success
@@ -134,7 +154,7 @@ for f1 in img_files:
     else:
         # Tracking failure
         cv2.putText(frame, "Tracking failure detected", (100,80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
-
+     '''
     # Display tracker type on frame
     #cv2.putText(frame, tracker_type + " Tracker", (100,20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2);
 
@@ -142,13 +162,13 @@ for f1 in img_files:
     #cv2.putText(frame, "FPS : " + str(int(fps)), (100,50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50), 2);
 
     # Display result
-    cv2.imshow("Tracking", frame)
-    frame = ((frame - np.amin(frame))/(np.amax(frame) - np.amin(frame)))*255.0
-    tracked[cont,:,:,:] = frame
-    cont += 1
-    # Exit if ESC pressed
-    k = cv2.waitKey(1) & 0xff 
+	cv2.imshow("Tracking", frame)
+	frame = ((frame - np.amin(frame))/(np.amax(frame) - np.amin(frame)))*255.0
+	tracked[cont,:,:,:] = frame
+	cont += 1
+	# Exit if ESC pressed
+	k = cv2.waitKey(1) & 0xff 
 
-    if k == 27:
-        break
+	if k == 27:
+		break
 imsave(os.path.join(path_s, "fake_neuron.tif"), tracked.astype("uint8"))
