@@ -10,6 +10,47 @@ import sys
 from tifffile import imread, imsave
 import imutils
 
+def Get_intensityFromBBox(image, bbox):
+
+	image = image[bbox[1]:bbox[1]+bbox[3], bbox[0]:bbox[0]+bbox[2]]
+
+	original = np.copy(image)
+	image = ((image - np.amin(image))/(np.amax(image) - np.amin(image)))*255.0
+	image = image.astype("uint8")
+	thresh = cv2.threshold(image, 0, 255,
+	cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+	D = ndimage.distance_transform_edt(thresh)
+	localMax = peak_local_max(D, indices=False, min_distance=3,  
+	    labels=thresh)
+	# perform a connected component analysis on the local peaks,
+	# using 8-connectivity, then apply the Watershed algorithm
+	markers = ndimage.label(localMax, structure=np.ones((3, 3)))[0]
+	labels = watershed(-D, markers, mask=thresh)
+	print("[INFO] {} unique segments found".format(len(np.unique(labels)) - 1))
+	avg = []
+	for label in np.unique(labels):
+		# if the label is zero, we are examining the 'background'
+		# so simply ignore it
+		if label == 0:
+		    continue
+		# otherwise, allocate memory for the label region and draw
+		# it on the mask
+		mask = np.zeros(image.shape, dtype="uint8")
+		mask[labels == label] = 255
+		# detect contours in the mask and grab the largest one
+		cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
+		    cv2.CHAIN_APPROX_SIMPLE)[-2]
+		c = max(cnts, key=cv2.contourArea)
+
+		rect = cv2.minAreaRect(c)
+		box = cv2.boxPoints(rect)
+		box = np.int0(box) 
+
+		mask = np.copy(image)
+		cv2.drawContours(mask,[box],-1,(255,255,255), -1)
+		idx = np.where(mask==255)
+		avg.append(np.mean(original[idx]))
+	return np.mean(avg)
 
 
 def Get_InitBboxes(gray):
@@ -77,37 +118,33 @@ frame = imutils.resize(frame, width=500)
 
 
 #For now only track one neuron
+intensity = {}
 colors = []
 bboxes = []
 pixels_frame = 10
-for box in boxes_coord:
+for idx_neuron, box in enumerate(boxes_coord):
 	xmin = np.amin(box[:,0])
 	ymin = np.amin(box[:,1])
 	xmax = np.amax(box[:,0])
 	ymax = np.amax(box[:,1])
 	w = ymax - ymin
 	h = xmax - xmin
+	#print(Get_intensityFromBBox(original, (xmin, ymin, h, w)))
+	intensity[idx_neuron+1] = [Get_intensityFromBBox(original, (xmin, ymin, h, w))]
 	#Normalize the coordinates for the new size
-	xmin = int((frame.shape[0]*(xmin))/original.shape[0]) - pixels_frame
-	ymin = int((frame.shape[0]*(ymin))/original.shape[0]) - pixels_frame
+	xmin = (int((frame.shape[0]*(xmin))/original.shape[0])) - pixels_frame
+	ymin = (int((frame.shape[0]*(ymin))/original.shape[0])) - pixels_frame
+	#print(Get_intensityFromBBox(original, (int(((xmin+pixels_frame)*original.shape[0])/frame.shape[0]), int(((ymin+pixels_frame)*original.shape[0])/frame.shape[0]), h+5, w+5)))
 	bboxes.append((xmin,ymin,h,w))
 	colors.append((np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255)))
 
-#h = int((frame.shape[0]*(h))/original.shape[0]) + pixels_frame
-#w = int((frame.shape[0]*(w))/original.shape[0]) + pixels_frame
+
 
 
 if frame is None:
     print("Cannot read image file")
     sys.exit()
 
-# Set the coord of the first neuron
-#bbox = (xmin, ymin, h, w)
-#print(bbox)
-#bbox = cv2.selectROI(frame, False)
-#print(bbox)
-#tracker = cv2.legacy.TrackerMOSSE_create()
-#ok = tracker.init(frame, bbox)
 
 #Create multitracker object
 tracker = cv2.legacy.MultiTracker_create()
@@ -136,6 +173,14 @@ for f1 in img_files:
 
 	# Update tracker
 	ok, bbox = tracker.update(frame)
+	#Get the intensity for the new boxes
+	for idx_neuron, box in enumerate(bbox):
+		xmin = int(((box[0]+pixels_frame)*original.shape[0])/frame.shape[0])
+		ymin = int(((box[1]+pixels_frame)*original.shape[0])/frame.shape[0])
+		h = int(box[2] + 5)
+		w = int(box[3] + 5)
+		intensity[idx_neuron+1].append(Get_intensityFromBBox(original, (xmin, ymin, h, w)))
+
 	print(ok)
 
 	# Calculate Frames per second (FPS)
@@ -179,3 +224,4 @@ for f1 in img_files:
 	if k == 27:
 		break
 imsave(os.path.join(path_s, "fake_neuron.tif"), tracked.astype("uint8"))
+print(intensity)
