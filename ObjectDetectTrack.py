@@ -225,3 +225,10 @@ for f1 in img_files:
 		break
 imsave(os.path.join(path_s, "fake_neuron.tif"), tracked.astype("uint8"))
 print(intensity)
+
+legend = []
+for i in range(len(boxes_coord)):
+	plt.plot(np.linspace(1, len(intensity[i+1]), len(intensity[i+1])), intensity[i+1])
+	legend.append("Neuron " + str(i+1))
+plt.legend(legend)
+plt.show()
